@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
 
 class CategoryController extends Controller
 {
@@ -41,12 +40,10 @@ class CategoryController extends Controller
         $category->title = $request->title;
         if ($request->hasFile('image')) {
             $file = $request->file('image');
-
-            // Store the image in the 'public/images' directory
-            $path = $file->store('images', 'public');
-
-            // Generate the public URL
-            $category->image = Storage::url($path);
+            $filename = date('YmdHis') . '.' . $file->getClientOriginalExtension();
+            $path = 'images';
+            $file->move($path, $filename);
+            $category->image = url('/') . '/images/' . $filename;
         }
         $category->save();
     }
@@ -70,19 +67,17 @@ class CategoryController extends Controller
         ]);
         $category->title = $request->title;
         if ($request->hasFile('image')) {
-            // Delete the old image if it exists
-            if ($category->image) {
-                $oldPath = str_replace(url('/storage'), 'public', $category->image);
-                if (Storage::exists($oldPath)) {
-                    Storage::delete($oldPath);
-                }
-            }
-            // Store the new image
-            $file = $request->file('image');
-            $path = $file->store('images', 'public');
-            $category->image = Storage::url($path); // Generate the public URL
-        }
+            $oldpath = public_path() . '/images/' . substr($category['image'], strrpos($category['image'], '/') + 1);
 
+            if (File::exists($oldpath)) {
+                File::delete($oldpath);
+            }
+            $file = $request->file('image');
+            $filename = date('YmdHis') . '.' . $file->getClientOriginalExtension();
+            $category->image = url('/') . '/images/' . $filename;
+            $path = 'images';
+            $file->move($path, $filename);
+        }
         $category->save();
     }
 
@@ -94,13 +89,13 @@ class CategoryController extends Controller
         //
     }
 
-    // Search On Users
-    public function search(Request $request)
-    {
-        $query = $request->input('title');
-        $results = Category::where('title', 'like', "%$query%")->get();
-        return response()->json($results);
-    }
+     // Search On Users
+     public function search(Request $request)
+     {
+            $query = $request->input('title');
+            $results = Category::where('title', 'like', "%$query%")->get();
+            return response()->json($results);
+     }
 
 
     /**
@@ -109,16 +104,11 @@ class CategoryController extends Controller
     public function destroy(Category $category, $id)
     {
         $category = Category::findOrFail($id);
-        if ($category->image) {
-            // Extract the relative storage path from the image URL
-            $path = str_replace(url('/storage'), 'public', $category->image);
+        $path = public_path() . '/images/' . substr($category['image'], strrpos($category['image'], '/') + 1);
 
-            // Check if the file exists and delete it
-            if (Storage::exists($path)) {
-                Storage::delete($path);
-            }
+        if (File::exists($path)) {
+            File::delete($path);
         }
-
         $category->delete();
     }
 }
